@@ -13,7 +13,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.validators import validate_email
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import FileResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -46,7 +46,7 @@ def throttle(key, limit):
     now = timezone.now()
     with transaction.atomic():
         Attempt.objects.filter(until__lte=now).delete()
-        row, _ = Attempt.objects.get_or_create(key=digest(key), defaults={"until": now + timedelta(minutes=15)})
+        row, _ = Attempt.objects.select_for_update().get_or_create(key=digest(key), defaults={"until": now + timedelta(minutes=15)})
         if row.count >= limit:
             raise Problem("Too many attempts. Try again in 15 minutes.", 429)
         row.count += 1
@@ -71,7 +71,7 @@ def auth_action(request, action, data):
         uid = field(data, "uid", 12)
         token = field(data, "token", 100)
         with transaction.atomic():
-            user = User.objects.filter(pk=int(uid)).first() if uid.isascii() and uid.isdigit() else None
+            user = User.objects.select_for_update().filter(pk=int(uid)).first() if uid.isascii() and uid.isdigit() else None
             if not user or not default_token_generator.check_token(user, token):
                 raise Problem("This reset link has expired or was already used.")
             change_password(user, data)
@@ -104,7 +104,7 @@ def auth_action(request, action, data):
             if User.objects.filter(username=email).exists():
                 raise Problem("Unable to register. Try signing in or resetting your password.")
             if code:
-                invitation = Invite.objects.filter(digest=digest(code), expires__gt=timezone.now()).first()
+                invitation = Invite.objects.select_for_update().filter(digest=digest(code), expires__gt=timezone.now()).first()
                 if not invitation:
                     raise Problem("That invitation is invalid or expired.")
                 family = invitation.family
@@ -113,7 +113,10 @@ def auth_action(request, action, data):
                 family = Family.objects.create(name=field(data, "family", 80))
             user = User(username=email, email=email)
             change_password(user, data)
-            user.save()
+            try:
+                user.save()
+            except IntegrityError:
+                raise Problem("Unable to register. Try signing in or resetting your password.")
             Member.objects.create(user=user, family=family, name=name, owner=not code)
     login(request, user)
     return {}
@@ -135,6 +138,7 @@ def family_action(me, action, data):
         Invite.objects.create(family=me.family, digest=digest(token), expires=timezone.now()+timedelta(days=7))
         return {"code":token}
     if action == "santa":
+        Family.objects.select_for_update().get(pk=me.family_id)
         year = timezone.now().year
         matches = Match.objects.filter(year=year, giver__family=me.family)
         if not matches.exists():
@@ -152,7 +156,7 @@ def family_action(me, action, data):
         return {}
     if action not in ("claim","pledge"):
         raise Problem("Unknown action.",404)
-    wish = Wish.objects.filter(pk=data.get("id"), member__family=me.family).first() if type(data.get("id")) is int and 0 < data["id"] < 2**63 else None
+    wish = Wish.objects.select_for_update(of=("self",)).filter(pk=data.get("id"), member__family=me.family).first() if type(data.get("id")) is int and 0 < data["id"] < 2**63 else None
     if not wish or wish.member_id == me.pk:
         raise Problem("This gift is unavailable.",403)
     if action == "claim":

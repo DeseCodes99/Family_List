@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "django",
+  "regions": ["syd1"],
+  "buildCommand": "npm ci --include=dev && npm run build && python manage.py migrate --noinput",
+  "functions": {
+    "family/wsgi.py": {
+      "includeFiles": "dist/**",
+      "excludeFiles": "node_modules/**"
+    }
+  }
+}
