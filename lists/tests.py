@@ -28,6 +28,18 @@ class FamilyPrivacyTests(TestCase):
     def state(self, client):
         return client.get("/api/state").json()
 
+    def test_only_author_can_edit_or_delete(self):
+        changes = dict(id=self.wish, title="Desk lamp", note="Green", price="A$30")
+        self.assertEqual(self.post(self.guest, "edit", **changes).status_code, 404)
+        self.assertEqual(self.post(self.guest, "delete", id=self.wish).status_code, 404)
+        self.post(self.guest, "pledge", id=self.wish, amount="10")
+        self.assertEqual(self.post(self.owner, "edit", **changes).status_code, 200)
+        saved = self.state(self.guest)["wishes"][0]
+        self.assertEqual((saved["title"], saved["note"], saved["price"]), ("Desk lamp", "Green", "A$30"))
+        self.assertEqual(saved["contributions"][0]["amount"], 10)
+        self.assertEqual(self.post(self.owner, "delete", id=self.wish).status_code, 200)
+        self.assertEqual(self.state(self.guest)["wishes"], [])
+
     def test_family_and_gift_privacy(self):
         other = self.signup("Taylor",family="Other")
         self.assertEqual(self.state(other)["wishes"],[])

@@ -75,7 +75,7 @@ export function LoginForm() {
           <span className="grid h-10 w-10 place-items-center rounded-full border border-white/35">
             <GiftMark />
           </span>
-          <span className="font-serif text-2xl">The Family List</span>
+          <span className="font-serif text-2xl">Family List</span>
         </div>
         <div className="relative max-w-xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/65">
@@ -101,7 +101,7 @@ export function LoginForm() {
               <GiftMark />
             </span>
             <div>
-              <p className="font-serif text-xl">The Family List</p>
+              <p className="font-serif text-xl">Family List</p>
               <p className="text-[10px] uppercase tracking-[0.18em] text-[#77786f]">
                 Christmas {/* @__PURE__ */ new Date().getUTCFullYear()}
               </p>

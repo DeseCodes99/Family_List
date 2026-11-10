@@ -151,8 +151,22 @@ def family_action(me, action, data):
         if not mine:
             raise Problem("You joined after this year’s draw. You can take part next Christmas.")
         return {"recipient":mine.recipient_id}
-    if action == "add":
-        Wish.objects.create(member=me, title=field(data,"title",160), note=field(data,"note",600,False) or "No extra details.", price=field(data,"price",100,False) or "Any price")
+    if action in ("add", "edit", "delete"):
+        wish = Wish(member=me)
+        if action != "add":
+            wish_id = data.get("id")
+            if type(wish_id) is not int or not 0 < wish_id < 2**63:
+                raise Problem("Invalid wish.")
+            wish = Wish.objects.select_for_update().filter(pk=wish_id, member=me).first()
+            if not wish:
+                raise Problem("This wish is unavailable.", 404)
+        if action == "delete":
+            wish.delete()
+            return {}
+        wish.title = field(data, "title", 160)
+        wish.note = field(data, "note", 600, False) or "No extra details."
+        wish.price = field(data, "price", 100, False) or "Any price"
+        wish.save()
         return {}
     if action not in ("claim","pledge"):
         raise Problem("Unknown action.",404)

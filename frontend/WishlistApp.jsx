@@ -87,6 +87,8 @@ export function WishlistApp({ state, refresh }) {
   const [activeId, setActiveId] = useState(me.id);
   const [drawer, setDrawer] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingWish, setEditingWish] = useState(null);
+  const [deletingWish, setDeletingWish] = useState(null);
   const [contributionWish, setContributionWish] = useState(null);
   const [secretOpen, setSecretOpen] = useState(false);
   const [secretMatch, setSecretMatch] = useState(null);
@@ -122,15 +124,21 @@ export function WishlistApp({ state, refresh }) {
       );
     });
   }
-  function addWish(event) {
+  function saveWish(event) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
     run(async () => {
-      await api("add", data);
+      if (editingWish) await api("edit", { ...data, id: editingWish.id });
+      else await api("add", data);
+      setEditingWish(null);
       setAddOpen(false);
       await refresh();
       setActiveId(me.id);
-      setNotice("Your wish has been added.");
+      setNotice(
+        editingWish
+          ? "Your changes have been saved."
+          : "Your wish has been added.",
+      );
     });
   }
   function saveContribution(event) {
@@ -173,7 +181,7 @@ export function WishlistApp({ state, refresh }) {
             </span>
             <span>
               <span className="block font-serif text-[21px] leading-none">
-                The Family List
+                Family List
               </span>
               <span className="mt-1 hidden text-[10px] uppercase tracking-[0.2em] text-[#77786f] sm:block">
                 Christmas {/* @__PURE__ */ new Date().getUTCFullYear()}
@@ -401,6 +409,22 @@ export function WishlistApp({ state, refresh }) {
                               </div>
                             )}
                           </div>
+                          {ownList && (
+                            <div className="flex shrink-0 items-start gap-3 text-xs font-semibold text-[#315b42]">
+                              <button
+                                onClick={() => setEditingWish(wish)}
+                                className="rounded-full border px-4 py-2"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => setDeletingWish(wish)}
+                                className="px-2 py-2 text-[#783d34]"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
                           {!ownList && !taken && (
                             <div className="flex shrink-0 flex-col gap-2">
                               {contributions.length === 0 && (
@@ -462,20 +486,67 @@ export function WishlistApp({ state, refresh }) {
           />
         </Modal>
       )}
-      {addOpen && (
-        <Modal title="Add a new wish" onClose={() => setAddOpen(false)}>
-          <form onSubmit={addWish} className="space-y-4">
-            <Field label="What would you like?" name="title" required />
-            <Field label="Details" name="note" />
+      {(addOpen || editingWish) && (
+        <Modal
+          title={editingWish ? "Edit wish" : "Add a new wish"}
+          onClose={() => {
+            setEditingWish(null);
+            setAddOpen(false);
+          }}
+        >
+          <form onSubmit={saveWish} className="space-y-4">
+            <Field
+              label="What would you like?"
+              name="title"
+              maxLength={160}
+              defaultValue={editingWish?.title}
+              required
+            />
+            <Field
+              label="Details"
+              name="note"
+              maxLength={600}
+              defaultValue={editingWish?.note}
+            />
             <Field
               label="Price guide"
               name="price"
+              maxLength={100}
+              defaultValue={editingWish?.price}
               placeholder="e.g. Around A$50"
             />
             <button className="w-full rounded-full bg-[#315b42] px-5 py-3 text-sm font-semibold text-white">
-              Add wish
+              {editingWish ? "Save changes" : "Add wish"}
             </button>
           </form>
+        </Modal>
+      )}
+      {deletingWish && (
+        <Modal title="Delete wish?" onClose={() => setDeletingWish(null)}>
+          <p className="text-sm">
+            Remove “{deletingWish.title}” from your wishlist?
+          </p>
+          <div className="mt-5 flex justify-end gap-3 text-sm font-semibold">
+            <button
+              onClick={() => setDeletingWish(null)}
+              className="rounded-full border px-5 py-2"
+            >
+              Cancel
+            </button>
+            <button
+              className="rounded-full bg-[#783d34] px-5 py-2 text-white"
+              onClick={() =>
+                run(async () => {
+                  await api("delete", { id: deletingWish.id });
+                  setDeletingWish(null);
+                  await refresh();
+                  setNotice("Your wish has been deleted.");
+                })
+              }
+            >
+              Delete wish
+            </button>
+          </div>
         </Modal>
       )}
       {contributionWish && (

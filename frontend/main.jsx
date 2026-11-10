@@ -32,7 +32,7 @@ function App() {
   if (!state)
     return (
       <main className="p-8" role="status">
-        Opening The Family List…
+        Opening Family List…
       </main>
     );
   return state.me && !location.hash.startsWith("#reset=") ? (
