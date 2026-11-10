@@ -32,11 +32,21 @@ def lookup_price(title, details, runtime_token=None):
         "model": "perplexity/sonar",
         "messages": [
             {"role": "system", "content": PROMPT},
-            {"role": "user", "content": json.dumps({"gift": title, "details": details})},
+            {"role": "user", "content": "Look up this gift at Australian retailers and return the requested price JSON. "
+                + json.dumps({"gift": title, "details": details})},
         ],
         "temperature": 0,
         "max_tokens": 450,
     }
+    for model in ("perplexity/sonar", "perplexity/sonar-pro"):
+        payload["model"] = model
+        offer = search_offer(payload, token, unavailable)
+        if offer is not None:
+            return offer
+    raise PriceCheckError("Couldn’t find a matching Australian retail price. Add the brand, model or product link and try again.")
+
+
+def search_offer(payload, token, unavailable):
     req = Request("https://ai-gateway.vercel.sh/v1/chat/completions", data=json.dumps(payload).encode(),
                   headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
     try:
@@ -44,7 +54,7 @@ def lookup_price(title, details, runtime_token=None):
             message = json.load(response)["choices"][0]["message"]
         search = message.get("provider_metadata", {}).get("perplexity", {}).get("usage", {})
         if not search.get("numSearchQueries"):
-            raise PriceCheckError("No live retail result was available. Try the brand and model.")
+            return None
         raw = message["content"].strip().removeprefix("```json").removeprefix("```").removesuffix("```")
         offer = json.loads(raw)
         amount = str(offer.get("amount"))
@@ -53,7 +63,7 @@ def lookup_price(title, details, runtime_token=None):
         if (offer.get("currency") != "AUD" or not re.fullmatch(r"\d{1,10}(\.\d{1,2})?", amount)
                 or Decimal(amount) <= 0 or parsed.scheme != "https" or not parsed.hostname
                 or "." not in parsed.hostname or parsed.username or len(url) > 2000 or parsed.path in ("", "/")):
-            raise PriceCheckError("Couldn’t find a matching Australian retail price. Add the brand, model or product link and try again.")
+            return None
         return Decimal(amount), url
     except (OSError, URLError, ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
         raise PriceCheckError(unavailable) from exc
