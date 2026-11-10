@@ -1,0 +1,7 @@
+@import "@fontsource/dm-sans/latin-400.css";
+@import "@fontsource/dm-sans/latin-600.css";
+@import "@fontsource/libre-caslon-text/latin-400.css";
+@import "tailwindcss" source(none);
+@source "./";
+@theme { --font-sans: 'DM Sans', sans-serif; --font-serif: 'Libre Caslon Text', Georgia, serif; }
+@layer base {body{min-width:320px;background:#f5f3ed;color:#282925;font-family:var(--font-sans)} button{cursor:pointer} :focus-visible{outline:2px solid #477656;outline-offset:3px} h1,h2,p,span{overflow-wrap:anywhere}}
