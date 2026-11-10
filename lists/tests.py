@@ -1,5 +1,8 @@
 import json
 import re
+from decimal import Decimal
+from unittest.mock import patch
+from .pricing import PriceCheckError
 from django.core import mail
 from django.test import Client, TestCase
 from .models import Wish
@@ -18,6 +21,7 @@ class FamilyPrivacyTests(TestCase):
         return client
 
     def setUp(self):
+        self.lookup = self.enterContext(patch("lists.views.lookup_price", return_value=(Decimal("30"), "https://shop.example.com.au/lamp")))
         self.owner = self.signup("Alex",family="Evergreen")
         code = self.post(self.owner,"invite").json()["code"]
         self.guest = self.signup("Jamie",code=code)
@@ -35,7 +39,7 @@ class FamilyPrivacyTests(TestCase):
         self.post(self.guest, "pledge", id=self.wish, amount="10")
         self.assertEqual(self.post(self.owner, "edit", **changes).status_code, 200)
         saved = self.state(self.guest)["wishes"][0]
-        self.assertEqual((saved["title"], saved["note"], saved["price"]), ("Desk lamp", "Green", "A$30"))
+        self.assertEqual((saved["title"], saved["note"], saved["price"]), ("Desk lamp", "Green", "A$30.00"))
         self.assertEqual(saved["contributions"][0]["amount"], 10)
         self.assertEqual(self.post(self.owner, "delete", id=self.wish).status_code, 200)
         self.assertEqual(self.state(self.guest)["wishes"], [])
@@ -57,6 +61,21 @@ class FamilyPrivacyTests(TestCase):
         self.assertEqual(self.state(self.guest)["wishes"][0]["selectedBy"],self.state(self.guest)["me"])
         self.post(self.guest,"claim",id=self.wish,claim=False)
         self.assertIsNone(self.state(self.guest)["wishes"][0]["selectedBy"])
+
+    def test_server_checks_limit_and_preserves_wish_on_failure(self):
+        source = "https://shop.example.com.au/lamp"
+        self.lookup.return_value = (Decimal("300.01"), source)
+        payload = dict(title="Budget test", price="1", checked_price="1", id=self.wish)
+        for action in ("add", "edit"):
+            self.assertEqual(self.post(self.owner, action, **payload).status_code, 422)
+        self.assertEqual(Wish.objects.get().title, "Reading lamp")
+        self.lookup.side_effect = PriceCheckError("Unverified price")
+        self.assertEqual(self.post(self.owner, "add", **payload).status_code, 422)
+        self.lookup.side_effect = None
+        self.lookup.return_value = (Decimal("300"), source)
+        self.assertEqual(self.post(self.owner, "add", **payload).status_code, 200)
+        new = Wish.objects.get(title="Budget test")
+        self.assertEqual((new.price, new.price_source), ("A$300.00", source))
 
     def test_draw_and_sessions(self):
         recipient=self.post(self.owner,"santa").json()["recipient"]

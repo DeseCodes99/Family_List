@@ -24,6 +24,7 @@ class Wish(models.Model):
     title = models.CharField(max_length=160)
     note = models.CharField(max_length=600)
     price = models.CharField(max_length=100)
+    price_source = models.URLField(max_length=2000, blank=True, default="")
     buyer = models.ForeignKey(Member, null=True, on_delete=models.SET_NULL, related_name="claims")
 
 

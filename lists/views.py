@@ -20,6 +20,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from .models import Attempt, Family, Invite, Match, Member, Pledge, Wish
+from .pricing import PriceCheckError, lookup_price
 
 
 class Problem(Exception):
@@ -59,6 +60,7 @@ def snapshot(user):
     wishes = []
     for wish in Wish.objects.filter(member__family=me.family).prefetch_related("pledge_set").order_by("id"):
         item = {"id":wish.id, "memberId":wish.member_id, "title":wish.title, "note":wish.note, "price":wish.price}
+        item["priceSource"] = wish.price_source
         if wish.member_id != me.id:
             item["selectedBy"] = wish.buyer_id
             item["contributions"] = [{"memberId":p.member_id, "amount":p.cents / 100} for p in wish.pledge_set.all()]
@@ -165,7 +167,8 @@ def family_action(me, action, data):
             return {}
         wish.title = field(data, "title", 160)
         wish.note = field(data, "note", 600, False) or "No extra details."
-        wish.price = field(data, "price", 100, False) or "Any price"
+        wish.price = data["checked_price"]
+        wish.price_source = data["checked_source"]
         wish.save()
         return {}
     if action not in ("claim","pledge"):
@@ -224,11 +227,27 @@ def api(request, action):
                 logout(request)
                 result = {}
             else:
+                if action in ("add", "edit"):
+                    title = field(data, "title", 160)
+                    note = field(data, "note", 600, False)
+                    if action == "edit":
+                        wish_id = data.get("id")
+                        if type(wish_id) is not int or not 0 < wish_id < 2**63 or not Wish.objects.filter(pk=wish_id, member=request.user.member).exists():
+                            raise Problem("This wish is unavailable.", 404)
+                    throttle("price:" + str(request.user.pk), 25)
+                    token = request.headers.get("x-vercel-oidc-token") if settings.ON_VERCEL else None
+                    amount, source = lookup_price(title, note, token)
+                    if amount > 300:
+                        raise Problem(f"The matching listing is A${amount:,.2f}, above the A$300 limit. Your wish was not saved.", 422)
+                    data["checked_price"] = f"A${amount:,.2f}"
+                    data["checked_source"] = source
                 with transaction.atomic():
                     result = family_action(request.user.member,action,data)
         response = JsonResponse(result)
     except Problem as exc:
         response = JsonResponse({"error":exc.message},status=exc.status)
+    except PriceCheckError as exc:
+        response = JsonResponse({"error":str(exc)},status=422)
     except ValidationError as exc:
         response = JsonResponse({"error":" ".join(exc.messages)},status=400)
     except (json.JSONDecodeError, UnicodeDecodeError):

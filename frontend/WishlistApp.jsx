@@ -88,6 +88,7 @@ export function WishlistApp({ state, refresh }) {
   const [drawer, setDrawer] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editingWish, setEditingWish] = useState(null);
+  const [checkingPrice, setCheckingPrice] = useState(false);
   const [deletingWish, setDeletingWish] = useState(null);
   const [contributionWish, setContributionWish] = useState(null);
   const [secretOpen, setSecretOpen] = useState(false);
@@ -128,8 +129,13 @@ export function WishlistApp({ state, refresh }) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
     run(async () => {
-      if (editingWish) await api("edit", { ...data, id: editingWish.id });
-      else await api("add", data);
+      setCheckingPrice(true);
+      try {
+        if (editingWish) await api("edit", { ...data, id: editingWish.id });
+        else await api("add", data);
+      } finally {
+        setCheckingPrice(false);
+      }
       setEditingWish(null);
       setAddOpen(false);
       await refresh();
@@ -392,6 +398,16 @@ export function WishlistApp({ state, refresh }) {
                             <span className="mt-4 inline-block rounded-md border border-[#d6d3cb] bg-white px-2.5 py-1.5 text-xs font-medium">
                               {wish.price}
                             </span>
+                            {wish.priceSource && (
+                              <a
+                                href={wish.priceSource}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-3 text-xs text-[#315b42] underline"
+                              >
+                                View price source
+                              </a>
+                            )}
                             {contributions.length > 0 && !ownList && (
                               <div className="mt-4 rounded-lg border border-[#c9d1ca] bg-[#edf2ed] p-3 text-xs">
                                 <p className="flex items-center gap-2 font-semibold">
@@ -487,6 +503,7 @@ export function WishlistApp({ state, refresh }) {
         <Modal
           title={editingWish ? "Edit wish" : "Add a new wish"}
           onClose={() => {
+            if (checkingPrice) return;
             setEditingWish(null);
             setAddOpen(false);
           }}
@@ -505,15 +522,19 @@ export function WishlistApp({ state, refresh }) {
               maxLength={600}
               defaultValue={editingWish?.note}
             />
-            <Field
-              label="Price guide"
-              name="price"
-              maxLength={100}
-              defaultValue={editingWish?.price}
-              placeholder="e.g. Around A$50"
-            />
-            <button className="w-full rounded-full bg-[#315b42] px-5 py-3 text-sm font-semibold text-white">
-              {editingWish ? "Save changes" : "Add wish"}
+            <p className="text-xs text-[#657068]">
+              AI searches Australian shops using the item name and details. The
+              limit is A$300 before delivery.
+            </p>
+            <button
+              disabled={checkingPrice}
+              className="w-full rounded-full bg-[#315b42] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {checkingPrice
+                ? "Checking Australian prices…"
+                : editingWish
+                  ? "Save changes"
+                  : "Add wish"}
             </button>
           </form>
         </Modal>

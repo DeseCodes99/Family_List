@@ -4,6 +4,7 @@ import { createServer } from 'vite'
 
 const windows = process.platform === 'win32'
 const python = windows ? '.venv/Scripts/python.exe' : '.venv/bin/python'
+if (existsSync('.env.local')) process.loadEnvFile('.env.local')
 const env = { ...process.env, APP_ENV: 'development', SITE_URL: 'http://localhost:5173' }
 
 function run(command, args) {
