@@ -477,12 +477,9 @@ export function WishlistApp({ state, refresh }) {
           <p className="text-sm">
             Share this single-use link privately. It expires in seven days.
           </p>
-          <input
-            aria-label="Invitation link"
-            readOnly
-            onFocus={(e) => e.target.select()}
-            value={location.origin + "/login#invite=" + invite}
-            className="mt-4 w-full rounded-lg border bg-white p-3"
+          <InviteLink
+            key={invite}
+            url={location.origin + "/login#invite=" + invite}
           />
         </Modal>
       )}
@@ -647,6 +644,48 @@ export function WishlistApp({ state, refresh }) {
     </div>
   );
 }
+function InviteLink({ url }) {
+  const input = useRef(null);
+  const [status, setStatus] = useState("");
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setStatus("Copied!");
+    } catch {
+      if (!input.current) return;
+      input.current.focus();
+      input.current.select();
+      setStatus("Link selected. Use your device’s Copy command.");
+    }
+  }
+
+  return (
+    <>
+      <div className="mt-4 flex items-stretch gap-2">
+        <input
+          ref={input}
+          aria-label="Invitation link"
+          readOnly
+          onFocus={(event) => event.target.select()}
+          value={url}
+          className="min-w-0 flex-1 rounded-lg border bg-white p-3"
+        />
+        <button
+          type="button"
+          onClick={copyLink}
+          className="rounded-lg bg-[#315b42] px-4 text-sm font-semibold text-white"
+        >
+          Copy
+        </button>
+      </div>
+      <p role="status" className="text-xs text-[#315b42]">
+        {status}
+      </p>
+    </>
+  );
+}
+
 function Modal({ title, children, onClose }) {
   return (
     <div
