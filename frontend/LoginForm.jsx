@@ -24,6 +24,7 @@ export function LoginForm() {
     params.has("invite") ? "register" : params.has("reset") ? "reset" : "login",
   );
   const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const invite = params.get("invite") || "";
@@ -31,6 +32,7 @@ export function LoginForm() {
     "mt-2 w-full rounded-lg border border-[#bbb8af] bg-white px-4 py-3 text-sm";
   function switchMode(next) {
     setMode(next);
+    setShowPassword(false);
     setError("");
     setMessage("");
   }
@@ -183,25 +185,55 @@ export function LoginForm() {
               </label>
             )}
             {mode !== "forgot" && (
-              <label className="block text-xs font-semibold">
-                Password
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                  minLength={mode === "login" ? 1 : 12}
-                  maxLength={256}
-                  required
-                  placeholder={
-                    mode === "login"
-                      ? "Your password"
-                      : "At least 12 characters"
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#bbb8af] bg-white px-4 py-3 text-sm outline-none focus:border-[#315b42] focus:ring-1 focus:ring-[#315b42]"
-                />
-              </label>
+              <div className="text-xs font-semibold">
+                <label htmlFor="account-password">Password</label>
+                <div className="relative mt-2">
+                  <input
+                    id="account-password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
+                    minLength={mode === "login" ? 1 : 12}
+                    maxLength={256}
+                    required
+                    placeholder={
+                      mode === "login"
+                        ? "Your password"
+                        : "At least 12 characters"
+                    }
+                    className="w-full rounded-lg border border-[#bbb8af] bg-white py-3 pl-4 pr-12 text-sm outline-none focus:border-[#315b42] focus:ring-1 focus:ring-[#315b42] [&::-ms-reveal]:hidden"
+                  />
+                  <button
+                    type="button"
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    aria-controls="account-password"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-lg text-[#536659] hover:text-[#244934]"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                      {showPassword && <path d="m3 3 18 18" />}
+                    </svg>
+                  </button>
+                </div>
+              </div>
             )}
             {message && (
               <p role="status" className="text-sm text-[#315b42]">
